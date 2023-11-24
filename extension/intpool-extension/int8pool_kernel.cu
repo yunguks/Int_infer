@@ -29,7 +29,8 @@ torch::Tensor tensor_core_int8_pool(
         torch::Tensor& input, 
         int32_t kernel_size,
         int32_t stride,
-        int32_t padding){
+        int32_t padding,
+        int32_t mode){
 
     cudnnHandle_t cudnnHandle = at::native::getCudnnHandle();
 
@@ -47,8 +48,15 @@ torch::Tensor tensor_core_int8_pool(
 
     cudnnPoolingDescriptor_t poolDesc;
     checkCUDNN(cudnnCreatePoolingDescriptor(&poolDesc));
-    checkCUDNN(cudnnSetPooling2dDescriptor(poolDesc, CUDNN_POOLING_MAX, CUDNN_PROPAGATE_NAN, 
-                kernel_size, kernel_size, padding, padding, stride, stride));
+    
+    // mode = 0 max, mode =1 avg
+    if (mode==0){
+        checkCUDNN(cudnnSetPooling2dDescriptor(poolDesc, CUDNN_POOLING_MAX, CUDNN_PROPAGATE_NAN, 
+                    kernel_size, kernel_size, padding, padding, stride, stride));
+    } else{
+        checkCUDNN(cudnnSetPooling2dDescriptor(poolDesc, CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING, CUDNN_PROPAGATE_NAN, 
+                    kernel_size, kernel_size, padding, padding, stride, stride));
+    }
     
     int32_t n_out;
     int32_t h_out;

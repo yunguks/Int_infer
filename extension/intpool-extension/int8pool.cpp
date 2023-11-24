@@ -5,7 +5,8 @@ torch::Tensor tensor_core_int8_pool(
         torch::Tensor& input, 
         int32_t kernel_size,
         int32_t stride,
-        int32_t padding);
+        int32_t padding,
+        int32_t mode);
 
 
 #define CHECK_CUDA(x) AT_ASSERTM(x.type().is_cuda(), #x " must be a CUDA tensor")
@@ -17,9 +18,10 @@ torch::Tensor int8_pool(
         torch::Tensor input, 
         int32_t kernel_size,
         int32_t stride,
-        int32_t padding){
+        int32_t padding,
+        int32_t mode){
     CHECK_INPUT(input);
-    return tensor_core_int8_pool(input, kernel_size, stride, padding);
+    return tensor_core_int8_pool(input, kernel_size, stride, padding, mode);
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
