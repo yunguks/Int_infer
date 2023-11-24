@@ -9,10 +9,11 @@ from torchvision.utils import _log_api_usage_once
 from torchvision.models._api import register_model, Weights, WeightsEnum
 from torchvision.models._meta import _IMAGENET_CATEGORIES
 from torchvision.models._utils import _ovewrite_named_param, handle_legacy_interface
-from layers import IntConv2d, IntLinear, IntPool
+from .layers import IntConv2d, IntLinear, IntPool, QuantReLU
 
 __all__ = [
     "VGG",
+    "INTVGG",
     "float_vgg16",
     "int_vgg16"
 ]
@@ -51,13 +52,13 @@ class INTVGG(nn.Module):
         super().__init__()
         _log_api_usage_once(self)
         self.features = features
-        self.avgpool = IntPool((7, 7),mode=1)
+        self.avgpool = IntPool(7,stride=7,mode=1)
         self.classifier = nn.Sequential(
             IntLinear(512, 4096),
-            nn.ReLU(True),
+            QuantReLU(),
             nn.Dropout(p=dropout),
             IntLinear(4096, 4096),
-            nn.ReLU(True),
+            QuantReLU(),
             nn.Dropout(p=dropout),
             IntLinear(4096, num_classes),
         )
@@ -68,6 +69,49 @@ class INTVGG(nn.Module):
         x = torch.flatten(x, 1)
         x = self.classifier(x)
         return x
+    
+    def cuda(self):
+        for layer in self.features.modules():
+            if 'Int' in str(type(layer)):
+                layer.cuda()
+
+        for layer in self.classifier.modules():
+            if 'Int' in str(type(layer)):
+                layer.cuda()
+
+class FLOATVGG(nn.Module):
+    def __init__(
+        self, features: nn.Module, num_classes: int = 100, init_weights: bool = True, dropout: float = 0.5
+    ) -> None:
+        super().__init__()
+        _log_api_usage_once(self)
+        self.features = features
+        self.avgpool = FLOATPool(7,stride=7,mode=1)
+        self.classifier = nn.Sequential(
+            FLOATLinear(512, 4096),
+            QuantReLU(),
+            nn.Dropout(p=dropout),
+            FLOATLinear(4096, 4096),
+            QuantReLU(),
+            nn.Dropout(p=dropout),
+            FLOATLinear(4096, num_classes),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.features(x)
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.classifier(x)
+        return x
+    
+    def cuda(self):
+        for layer in self.features.modules():
+            if 'FLOAT' in str(type(layer)):
+                layer.cuda()
+
+        for layer in self.classifier.modules():
+            if 'FLOAT' in str(type(layer)):
+                layer.cuda()
 
 
 def make_layers(cfg: List[Union[str, int]]) -> nn.Sequential:
@@ -90,9 +134,22 @@ def int_make_layers(cfg: List[Union[str, int]]) -> nn.Sequential:
         for v in vs:
             v = cast(int, v)
             conv2d = IntConv2d(in_channels, v, kernel_size=3, padding=1)
-            layers += [conv2d, nn.ReLU(inplace=True)]
+            layers += [conv2d, QuantReLU()]
             in_channels = v
         layers += [IntPool(kernel_size=2, stride=2)]
+    return nn.Sequential(*layers)
+
+
+def float_make_layers(cfg: List[Union[str, int]]) -> nn.Sequential:
+    layers: List[nn.Module] = []
+    in_channels = 4
+    for vs in cfg:
+        for v in vs:
+            v = cast(int, v)
+            conv2d = FLOATConv2d(in_channels, v, kernel_size=3, padding=1)
+            layers += [conv2d, nn.ReLU()]
+            in_channels = v
+        layers += [FLOATPool(kernel_size=2, stride=2)]
     return nn.Sequential(*layers)
 
 
@@ -102,10 +159,14 @@ cfgs: Dict[str, List[Union[str, int]]] = {
 }
 
 
-def float_vgg16(cfg: str, batch_norm: bool, weights: Optional[WeightsEnum], progress: bool, **kwargs: Any) -> VGG:
+def float_vgg16(cfg: str = "D", batch_norm: bool=False, **kwargs: Any) -> VGG:
     model = VGG(make_layers(cfgs[cfg]), **kwargs)
     return model
 
-def int_vgg16(cfg: str, batch_norm: bool, weights: Optional[WeightsEnum], progress: bool, **kwargs: Any) -> VGG:
+def int_vgg16(cfg: str = "D", batch_norm: bool=False, **kwargs: Any) -> VGG:
     model = INTVGG(int_make_layers(cfgs[cfg]), **kwargs)
+    return model
+
+def float_vgg16(cfg: str = "D", batch_norm: bool=False, **kwargs: Any) -> VGG:
+    model = INTVGG(float_make_layers(cfgs[cfg]), **kwargs)
     return model
