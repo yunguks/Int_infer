@@ -38,8 +38,8 @@ torch::Tensor tensor_core_int8_mm(torch::Tensor lhs,torch::Tensor rhs)
 
 torch::Tensor tensor_core_float_mm(torch::Tensor lhs,torch::Tensor rhs)
 {
-    int32_t alpha = 1;
-    int32_t beta = 0;
+    float alpha = 1.;
+    float beta = 0.;
     /* only support m,n,k multiply of 4 */
     int m = lhs.size(0);
     int k = lhs.size(1);

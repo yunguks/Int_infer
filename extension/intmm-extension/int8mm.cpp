@@ -13,6 +13,7 @@ torch::Tensor int8_mm(torch::Tensor lhs,torch::Tensor rhs)
     CHECK_INPUT(rhs);
     return tensor_core_int8_mm(lhs, rhs);
 }
+
 torch::Tensor float_mm(torch::Tensor lhs,torch::Tensor rhs) 
 {
     CHECK_INPUT(lhs);
@@ -22,5 +23,5 @@ torch::Tensor float_mm(torch::Tensor lhs,torch::Tensor rhs)
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("int8_mm", &int8_mm, "int8 matrix multiply using Nvidia GPU");
-  m.def("float_mm", &int8_mm, "float matrix multiply using Nvidia GPU");
+  m.def("float_mm", &float_mm, "float matrix multiply using Nvidia GPU");
 }

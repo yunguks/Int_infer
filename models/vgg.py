@@ -11,14 +11,6 @@ from torchvision.models._meta import _IMAGENET_CATEGORIES
 from torchvision.models._utils import _ovewrite_named_param, handle_legacy_interface
 from .layers import *
 
-__all__ = [
-    "VGG",
-    "INTVGG",
-    "FLOATVGG",
-    "float_vgg16",
-    "int_vgg16"
-]
-
 
 class VGG(nn.Module):
     def __init__(
@@ -29,7 +21,7 @@ class VGG(nn.Module):
         self.features = features
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
         self.classifier = nn.Sequential(
-            nn.Linear(512, 4096, bias=False),
+            nn.Linear(512*7*7, 4096, bias=False),
             nn.ReLU(True),
             nn.Dropout(p=dropout),
             nn.Linear(4096, 4096, bias=False),
@@ -40,7 +32,7 @@ class VGG(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.features(x)
-        x = self.avgpool(x)
+        # x = self.avgpool(x)
         x = torch.flatten(x, 1)
         x = self.classifier(x)
         return x
@@ -53,9 +45,9 @@ class INTVGG(nn.Module):
         super().__init__()
         _log_api_usage_once(self)
         self.features = features
-        self.avgpool = IntPool(7,stride=7,mode=1)
+        # self.avgpool = IntPool(7,stride=7,mode=1)
         self.classifier = nn.Sequential(
-            IntLinear(512, 4096),
+            IntLinear(25088, 4096),
             QuantReLU(),
             nn.Dropout(p=dropout),
             IntLinear(4096, 4096),
@@ -66,7 +58,7 @@ class INTVGG(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.features(x)
-        x = self.avgpool(x)
+        # x = self.avgpool(x)
         x = torch.flatten(x, 1)
         x = self.classifier(x)
         return x
@@ -80,6 +72,7 @@ class INTVGG(nn.Module):
             if 'Int' in str(type(layer)):
                 layer.cuda()
 
+
 class FLOATVGG(nn.Module):
     def __init__(
         self, features: nn.Module, num_classes: int = 100, init_weights: bool = True, dropout: float = 0.5
@@ -87,9 +80,9 @@ class FLOATVGG(nn.Module):
         super().__init__()
         _log_api_usage_once(self)
         self.features = features
-        self.avgpool = FLOATPool(7,stride=7,mode=1)
+        # self.avgpool = FLOATPool(7,stride=7,mode=1)
         self.classifier = nn.Sequential(
-            FLOATLinear(512, 4096),
+            FLOATLinear(25088, 4096),
             nn.ReLU(),
             nn.Dropout(p=dropout),
             FLOATLinear(4096, 4096),
@@ -100,7 +93,7 @@ class FLOATVGG(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.features(x)
-        x = self.avgpool(x)
+        # x = self.avgpool(x)
         x = torch.flatten(x, 1)
         x = self.classifier(x)
         return x
@@ -122,7 +115,7 @@ def make_layers(cfg: List[Union[str, int]]) -> nn.Sequential:
         for v in vs:
             v = cast(int, v)
             conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
-            layers += [conv2d, nn.ReLU(inplace=True)]
+            layers += [conv2d, nn.ReLU()]
             in_channels = v
         layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
     return nn.Sequential(*layers)
@@ -160,14 +153,14 @@ cfgs: Dict[str, List[Union[str, int]]] = {
 }
 
 
-def float_vgg16(cfg: str = "D", batch_norm: bool=False, **kwargs: Any) -> VGG:
+def vgg16(cfg: str = "D", batch_norm: bool=False, **kwargs: Any) -> VGG:
     model = VGG(make_layers(cfgs[cfg]), **kwargs)
     return model
 
-def int_vgg16(cfg: str = "D", batch_norm: bool=False, **kwargs: Any) -> VGG:
+def int_vgg16(cfg: str = "D", batch_norm: bool=False, **kwargs: Any) -> INTVGG:
     model = INTVGG(int_make_layers(cfgs[cfg]), **kwargs)
     return model
 
-def float_vgg16(cfg: str = "D", batch_norm: bool=False, **kwargs: Any) -> VGG:
+def float_vgg16(cfg: str = "D", batch_norm: bool=False, **kwargs: Any) -> FLOATVGG:
     model = FLOATVGG(float_make_layers(cfgs[cfg]), **kwargs)
     return model
