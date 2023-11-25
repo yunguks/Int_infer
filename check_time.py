@@ -94,9 +94,8 @@ def run_inference(model: nn.Module,
     return model.forward(input_tensor)
 
 
-def main(model, input_tensor) -> None:
+def main(model, input_tensor, result) -> None:
 
-    result = []
     num_warmups = 100
     num_repeats = 1000
 
@@ -177,13 +176,13 @@ def main(model, input_tensor) -> None:
     return result
 
 
-def save_result(path,name,result):
+def save_result(path,result):
     if os.path.exists(path):
         old_df = pd.read_csv(path,index_col=0)
-        new_df = pd.DataFrame([result], columns=['cpu_conti', 'cpu_x', 'gpu_conti', 'gpu_x', 'total'], index=[name])
-        df = pd.concat([old_df,new_df])
+        new_df = pd.DataFrame([result], columns=['type', 'target', 'index', 'in_c', 'out_c', 'h','cpu_conti', 'cpu_x', 'gpu_conti', 'gpu_x', 'total'])
+        df = pd.concat([old_df,new_df], ignore_index=True)
     else:
-        df = pd.DataFrame([result], columns=['cpu_conti', 'cpu_x', 'gpu_conti', 'gpu_x', 'total'], index=[name])
+        df = pd.DataFrame([result], columns=['type', 'target', 'index', 'in_c', 'out_c', 'h','cpu_conti', 'cpu_x', 'gpu_conti', 'gpu_x', 'total'])
 
     df.to_csv(path)
 
@@ -210,6 +209,10 @@ if __name__=="__main__":
             "outc": [4096,4096,100],
         }
     }
+    
+    in_c = 0
+    out_c =0
+    h = 0
     
     if args.target !="all":
         in_c = info[args.target]['inc'][args.index]
@@ -255,9 +258,6 @@ if __name__=="__main__":
 
     x = x.cuda()
     layer.cuda()
-    result = main(layer, x)
-    if args.index:
-        name = args.type+args.target+str(args.index)
-    else:
-        name = args.type+args.target
-    save_result(args.path, name, result)
+    result = [args.type, args.target, args.index, in_c, out_c, h]
+    result = main(layer, x, result)
+    save_result(args.path, result)
