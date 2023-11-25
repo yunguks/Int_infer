@@ -41,7 +41,8 @@ class IntConv2d(Module):
         self.padding = padding
 
     def forward(self,x):
-        y = int8conv_cuda.cu_int8_conv(x,self.weight,self.stride, self.padding,1)
+        y = int8conv_cuda.int8_conv(x,self.weight,self.stride, self.padding,1)
+        print(y.dtype)
         return y
     
     def cuda(self):
@@ -68,7 +69,7 @@ class FLOATLinear(Module):
     def forward(self,x):
         # weight [OUT, IN} - > [IN, OUT]
         # input [BATCH, IN]
-        y = int8mm_cuda.int8_mm(x,self.weight.transpose(1,0).contiguous())
+        y = int8mm_cuda.float_mm(x,self.weight.transpose(1,0).contiguous())
         return y
     
     def cuda(self):
@@ -85,7 +86,7 @@ class FLOATPool(Module):
         self.mode = mode
     
     def forward(self,x):
-        y = int8pool_cuda.int8_pool(x,self.kernel_size, self.stride, self.padding, self.mode)
+        y = int8pool_cuda.float_pool(x,self.kernel_size, self.stride, self.padding, self.mode)
         return y
     
 
@@ -97,7 +98,8 @@ class FLOATConv2d(Module):
         self.padding = padding
 
     def forward(self,x):
-        y = int8conv_cuda.cu_int8_conv(x,self.weight,self.stride, self.padding,1)
+        y = int8conv_cuda.float_conv(x,self.weight,self.stride, self.padding,1)
+        
         return y
     
     def cuda(self):

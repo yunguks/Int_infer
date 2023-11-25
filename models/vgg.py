@@ -9,11 +9,12 @@ from torchvision.utils import _log_api_usage_once
 from torchvision.models._api import register_model, Weights, WeightsEnum
 from torchvision.models._meta import _IMAGENET_CATEGORIES
 from torchvision.models._utils import _ovewrite_named_param, handle_legacy_interface
-from .layers import IntConv2d, IntLinear, IntPool, QuantReLU
+from .layers import *
 
 __all__ = [
     "VGG",
     "INTVGG",
+    "FLOATVGG",
     "float_vgg16",
     "int_vgg16"
 ]
@@ -89,10 +90,10 @@ class FLOATVGG(nn.Module):
         self.avgpool = FLOATPool(7,stride=7,mode=1)
         self.classifier = nn.Sequential(
             FLOATLinear(512, 4096),
-            QuantReLU(),
+            nn.ReLU(),
             nn.Dropout(p=dropout),
             FLOATLinear(4096, 4096),
-            QuantReLU(),
+            nn.ReLU(),
             nn.Dropout(p=dropout),
             FLOATLinear(4096, num_classes),
         )
@@ -168,5 +169,5 @@ def int_vgg16(cfg: str = "D", batch_norm: bool=False, **kwargs: Any) -> VGG:
     return model
 
 def float_vgg16(cfg: str = "D", batch_norm: bool=False, **kwargs: Any) -> VGG:
-    model = INTVGG(float_make_layers(cfgs[cfg]), **kwargs)
+    model = FLOATVGG(float_make_layers(cfgs[cfg]), **kwargs)
     return model

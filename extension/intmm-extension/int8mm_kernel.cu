@@ -35,6 +35,35 @@ torch::Tensor tensor_core_int8_mm(torch::Tensor lhs,torch::Tensor rhs)
     return results.transpose(0,1);
 }
 
+
+torch::Tensor tensor_core_float_mm(torch::Tensor lhs,torch::Tensor rhs)
+{
+    int32_t alpha = 1;
+    int32_t beta = 0;
+    /* only support m,n,k multiply of 4 */
+    int m = lhs.size(0);
+    int k = lhs.size(1);
+    int n = rhs.size(1);
+
+    int lda = k;
+    int ldb = n;
+    int ldc = m;
+    // create the result tensor in a transposed way
+    auto results=torch::empty({n,m},torch::dtype(torch::kFloat32).device(torch::kCUDA, 0));
+    
+    cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
+    // Pytorch is row major, cublas is column major
+    // need to use TT version gemm 
+    cublasGemmEx(handle,CUBLAS_OP_T,CUBLAS_OP_T,
+            m,n,k,&alpha,
+            lhs.data<float>(),CUDA_R_32F,lda,
+            rhs.data<float>(),CUDA_R_32F,ldb,
+            &beta,results.data<float>(),
+            CUDA_R_32F,ldc,CUDA_R_32F,CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+    // need to tranpose it for pytorch usage
+    return results.transpose(0,1);
+}
+
 // torch::Tensor tensor_core_int8_mm_no_trans(torch::Tensor lhs,torch::Tensor rhs)
 // {
 //     int32_t alpha = 1;

@@ -176,7 +176,7 @@ void find_algo(
     // according to find algo function, should use algo 1
 }
 
-torch::Tensor int8_conv(
+torch::Tensor tensor_core_int8_conv(
         torch::Tensor& input, 
         torch::Tensor& weight,
         int32_t stride,
@@ -234,11 +234,11 @@ torch::Tensor int8_conv(
     checkCUDNN(cudnnCreateTensorDescriptor(&yDesc));
     checkCUDNN(cudnnSetTensor4dDescriptor(yDesc, 
                 CUDNN_TENSOR_NHWC, 
-                CUDNN_DATA_FLOAT, 
+                CUDNN_DATA_INT32, 
                 n_out, c_out, h_out, w_out));
 
     //std::cout<<"create y tensor"<<std::endl;
-    auto y = torch::empty({n_out, h_out, w_out, c_out}, torch::dtype(torch::kFloat32).device(torch::kCUDA, 0));
+    auto y = torch::empty({n_out, h_out, w_out, c_out}, torch::dtype(torch::kInt32).device(torch::kCUDA, 0));
 
     // cudnnConvolutionFwdAlgo_t algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
     cudnnConvolutionFwdAlgo_t algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
@@ -258,6 +258,100 @@ torch::Tensor int8_conv(
                 convDesc,
                 algo,
                 workspace.data<int32_t>(),
+                ws_size,
+                &beta,yDesc,
+                y.data<int32_t>()));
+
+     checkCUDNN(cudnnDestroyTensorDescriptor(yDesc));
+     checkCUDNN(cudnnDestroyConvolutionDescriptor(convDesc));
+     checkCUDNN(cudnnDestroyFilterDescriptor(wDesc));
+     checkCUDNN(cudnnDestroyTensorDescriptor(xDesc));
+
+     return y;
+}
+
+torch::Tensor tensor_core_float_conv(
+        torch::Tensor& input, 
+        torch::Tensor& weight,
+        int32_t stride,
+        int32_t padding,
+        int32_t dilation){
+
+    /* only support n_in and c_in multiply of 4 */
+
+    cudnnHandle_t cudnnHandle = at::native::getCudnnHandle();
+    /* Tensor Descriptor 할당 */
+    cudnnTensorDescriptor_t xDesc;
+    checkCUDNN(cudnnCreateTensorDescriptor(&xDesc));
+    int32_t n_in = input.size(0);
+    int32_t h_in = input.size(1);
+    int32_t w_in = input.size(2);
+    int32_t c_in = input.size(3);
+    checkCUDNN(cudnnSetTensor4dDescriptor(xDesc, 
+                CUDNN_TENSOR_NHWC, 
+                CUDNN_DATA_FLOAT, 
+                n_in, c_in, h_in, w_in));
+
+
+    int32_t n_weight= weight.size(0);
+    int32_t h_weight = weight.size(1);
+    int32_t w_weight = weight.size(2);
+    int32_t c_weight = weight.size(3);
+    
+    /* filter Descriptor 할당 */
+    cudnnFilterDescriptor_t wDesc;
+    checkCUDNN(cudnnCreateFilterDescriptor(&wDesc));
+    checkCUDNN(cudnnSetFilter4dDescriptor(wDesc, 
+                CUDNN_DATA_FLOAT, 
+                CUDNN_TENSOR_NCHW, 
+                n_weight, c_weight, h_weight, w_weight));
+
+    /* Convolution setting 할당*/
+    cudnnConvolutionDescriptor_t convDesc;
+    checkCUDNN(cudnnCreateConvolutionDescriptor(&convDesc));
+    checkCUDNN(cudnnSetConvolution2dDescriptor(convDesc, padding, padding, stride, stride, dilation, dilation, 
+                CUDNN_CROSS_CORRELATION,
+                CUDNN_DATA_FLOAT));
+    
+    // if (c_in % 4 !=0){
+    //     checkCUDNN(cudnnSetConvolutionMathType(convDesc, CUDNN_FMA_MATH));
+    // }
+
+    int32_t n_out;
+    int32_t h_out;
+    int32_t w_out;
+    int32_t c_out;
+    checkCUDNN(cudnnGetConvolution2dForwardOutputDim(convDesc, xDesc, wDesc, &n_out, &c_out, &h_out, &w_out));
+
+    /* 출력 구조 할당 */
+    cudnnTensorDescriptor_t yDesc;
+    checkCUDNN(cudnnCreateTensorDescriptor(&yDesc));
+    checkCUDNN(cudnnSetTensor4dDescriptor(yDesc, 
+                CUDNN_TENSOR_NHWC, 
+                CUDNN_DATA_FLOAT, 
+                n_out, c_out, h_out, w_out));
+
+    //std::cout<<"create y tensor"<<std::endl;
+    auto y = torch::empty({n_out, h_out, w_out, c_out}, torch::dtype(torch::kFloat32).device(torch::kCUDA, 0));
+
+    // cudnnConvolutionFwdAlgo_t algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
+    cudnnConvolutionFwdAlgo_t algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
+
+    float alpha = 1.0;
+    //float alpha = 1.0;
+    float beta = 0.0;
+
+    //size_t ws_size = 355968;
+    size_t ws_size;
+    checkCUDNN(cudnnGetConvolutionForwardWorkspaceSize(cudnnHandle,xDesc,wDesc,convDesc,yDesc,algo,&ws_size));
+    auto workspace = torch::empty({static_cast<int64_t>(ws_size)}, torch::dtype(torch::kFloat32).device(torch::kCUDA, 0));
+
+    checkCUDNN(cudnnConvolutionForward(cudnnHandle,
+                &alpha,xDesc,input.data<float>(),
+                wDesc,weight.data<float>(),
+                convDesc,
+                algo,
+                workspace.data<float>(),
                 ws_size,
                 &beta,yDesc,
                 y.data<float>()));
