@@ -3,6 +3,9 @@
 
 dataset
 checkpoint
+build
+dist
+*.egg-info
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
