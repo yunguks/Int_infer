@@ -12,8 +12,7 @@ elif [ "$1" == "all" ]; then
     run_time=true
     run_memory=true
 else
-    echo "Invalid argument. Usage: $0 {time|memory|all}"
-    exit 1
+    echo "time and memory experiment x. Usage: $0 {time|memory|all}"
 fi
 
 types=("torch" "int" "float")
@@ -44,3 +43,12 @@ for t in "${types[@]}"; do
         done
     fi
 done
+
+
+lr=(1e-4 7e-5 5e-5 2e-5)
+if [ "$1" == "train" ]; then
+    for l in "${lr[@]}"; do
+        python train.py --lr $l --optim sgd
+        python train.py --lr $l --optim adam
+    done
+fi

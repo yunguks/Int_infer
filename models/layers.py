@@ -5,14 +5,18 @@ import torch.nn as nn
 import torch
 
 class IntLinear(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, bias=True):
         super(IntLinear,self).__init__()
         self.weight = torch.randint(-128,127,(out_channels, in_channels), dtype=torch.int8)
+        self.b = bias
+        self.bias = torch.zeros((out_channels),dtype=torch.int8)
 
     def forward(self,x):
         # weight [OUT, IN} - > [IN, OUT]
         # input [BATCH, IN]
         y = int8mm_cuda.int8_mm(x,self.weight.transpose(1,0).contiguous())
+        if self.b:
+            y = y+self.bias
         return y
     
     def cuda(self):
@@ -107,8 +111,8 @@ class QuantReLU(nn.Module):
         super(QuantReLU,self).__init__()
     
     def forward(self,x):
-        x = x + 2**15
+        # x = x + 2**15
         x = torch.clamp(x, min=0, max=2**16-1)
         x = torch.sqrt(x)
-        x = x-128
+        # x = x-128
         return x.type(torch.int8)
