@@ -56,7 +56,7 @@ def get_args():
     parser.add_argument("--type", choices=['torch','int','float'], default="torch", help="select model type. Default pytorch type")
     parser.add_argument("--index", type=int, default=0, help='select layer index. conv 12, linaer 2. Default 0')
     parser.add_argument("--batch", type=int, default=1, help='select batch. Default 1.')
-    parser.add_argument("--path", type=str,default="result/memory.csv", help="csv file path")
+    parser.add_argument("--path", type=str,default="result/memory1.csv", help="csv file path")
     return parser.parse_args()
 
 if __name__=="__main__":

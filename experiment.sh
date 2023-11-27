@@ -15,7 +15,7 @@ else
     echo "time and memory experiment x. Usage: $0 {time|memory|all}"
 fi
 
-types=("int" "float" "torch")
+types=("torch" "int" "float")
 batch=(1 64)
 # 선택된 실험만 실행
 for t in "${types[@]}"; do
