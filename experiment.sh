@@ -15,33 +15,35 @@ else
     echo "time and memory experiment x. Usage: $0 {time|memory|all}"
 fi
 
-types=("torch" "int" "float")
-
+types=("int" "float" "torch")
+batch=(1 64)
 # 선택된 실험만 실행
 for t in "${types[@]}"; do
-    if [ "$run_time" = true ]; then
-        python check_time.py --target all --type $t
+    for b in "${batch[@]}"; do
+        if [ "$run_time" = true ]; then
+            python check_time.py --target all --type $t --batch $b
 
-        for var in {0..12}; do
-            python check_time.py --target conv --type $t --index $var
-        done
+            for var in {0..12}; do
+                python check_time.py --target conv --type $t --index $var --batch $b
+            done
 
-        for var in {0..2}; do
-            python check_time.py --target linear --type $t --index $var
-        done
-    fi
+            for var in {0..2}; do
+                python check_time.py --target linear --type $t --index $var --batch $b
+            done
+        fi
 
-    if [ "$run_memory" = true ]; then
-        python check_memory.py --target all --type $t
+        if [ "$run_memory" = true ]; then
+            python check_memory.py --target all --type $t --batch $b
 
-        for var in {0..12}; do
-            python check_memory.py --target conv --type $t --index $var
-        done
+            for var in {0..12}; do
+                python check_memory.py --target conv --type $t --index $var --batch $b
+            done
 
-        for var in {0..2}; do
-            python check_memory.py --target linear --type $t --index $var
-        done
-    fi
+            for var in {0..2}; do
+                python check_memory.py --target linear --type $t --index $var --batch $b
+            done
+        fi
+    done
 done
 
 

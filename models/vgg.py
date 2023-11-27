@@ -62,10 +62,8 @@ class INTVGG(nn.Module):
         self.classifier = nn.Sequential(
             IntLinear(25088, 4096),
             QuantReLU(),
-            nn.Dropout(p=dropout),
             IntLinear(4096, 4096),
             QuantReLU(),
-            nn.Dropout(p=dropout),
             IntLinear(4096, num_classes),
         )
 
@@ -97,10 +95,8 @@ class FLOATVGG(nn.Module):
         self.classifier = nn.Sequential(
             FLOATLinear(25088, 4096),
             nn.ReLU(),
-            nn.Dropout(p=dropout),
             FLOATLinear(4096, 4096),
             nn.ReLU(),
-            nn.Dropout(p=dropout),
             FLOATLinear(4096, num_classes),
         )
 

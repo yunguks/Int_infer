@@ -7,20 +7,23 @@ import torch
 class IntLinear(nn.Module):
     def __init__(self, in_channels, out_channels, bias=True):
         super(IntLinear,self).__init__()
-        self.weight = torch.randint(-128,127,(out_channels, in_channels), dtype=torch.int8)
+        self.weight = torch.randint(-128,127,(in_channels, out_channels), dtype=torch.int8)
         self.b = bias
         self.bias = torch.zeros((out_channels),dtype=torch.int8)
 
     def forward(self,x):
         # weight [OUT, IN} - > [IN, OUT]
         # input [BATCH, IN]
-        y = int8mm_cuda.int8_mm(x,self.weight.transpose(1,0).contiguous())
+        x = x.contiguous()
+        y = int8mm_cuda.int8_mm(x,self.weight)
         if self.b:
             y = y+self.bias
         return y
     
     def cuda(self):
         self.weight = self.weight.cuda()
+        if self.b:
+            self.bias = self.bias.cuda()
 
 
 class IntPool(nn.Module):
@@ -52,28 +55,27 @@ class IntConv2d(nn.Module):
         self.weight = self.weight.cuda()
 
 
-class QuantReLU(nn.Module):
-    def __init__(self):
-        super(QuantReLU,self).__init__()
-    
-    def forward(self,x):
-        x = torch.sqrt(torch.clamp(x+2**15, min=0, max=2**16-1))-128
-        return x.type(torch.int8)
-    
-
 class FLOATLinear(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, bias=True):
         super(FLOATLinear,self).__init__()
-        self.weight = torch.rand((out_channels, in_channels))
+        self.weight = torch.rand((in_channels, out_channels))
+        self.b = bias
+        self.bias = torch.zeros((out_channels),dtype=torch.int8)
+        
 
     def forward(self,x):
         # weight [OUT, IN} - > [IN, OUT]
         # input [BATCH, IN]
-        y = int8mm_cuda.float_mm(x,self.weight.transpose(1,0).contiguous())
+        x = x.contiguous()
+        y = int8mm_cuda.float_mm(x,self.weight)
+        if self.b:
+            y = y+self.bias
         return y
     
     def cuda(self):
         self.weight = self.weight.cuda()
+        if self.b:
+            self.bias = self.bias.cuda()
 
 
 class FLOATPool(nn.Module):
@@ -112,7 +114,15 @@ class QuantReLU(nn.Module):
     
     def forward(self,x):
         # x = x + 2**15
-        x = torch.clamp(x, min=0, max=2**16-1)
-        x = torch.sqrt(x)
+        x = torch.sqrt(torch.clamp(x, min=0, max=2**16-1))
         # x = x-128
         return x.type(torch.int8)
+
+# class QuantReLU(nn.Module):
+#     def __init__(self):
+#         super(QuantReLU,self).__init__()
+    
+#     def forward(self,x):
+#         x = torch.sqrt(torch.clamp(x+2**15, min=0, max=2**16-1))-128
+#         return x.type(torch.int8)
+    
