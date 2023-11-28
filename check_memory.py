@@ -6,7 +6,18 @@ import torch.utils.benchmark as benchmark
 import pandas as pd
 import os
 import argparse
+import numpy as np
+import random
 
+
+def manual_seed(seed):
+    np.random.seed(seed) #1
+    random.seed(seed) #2
+    torch.manual_seed(seed) #3
+    torch.cuda.manual_seed(seed) #4.1
+    torch.cuda.manual_seed_all(seed) #4.2
+    torch.backends.cudnn.benchmark = False #5 
+    torch.backends.cudnn.deterministic = True #6
 
 MB = 1024. * 1024.
 @torch.no_grad()
@@ -56,16 +67,17 @@ def get_args():
     parser.add_argument("--type", choices=['torch','int','float'], default="torch", help="select model type. Default pytorch type")
     parser.add_argument("--index", type=int, default=0, help='select layer index. conv 12, linaer 2. Default 0')
     parser.add_argument("--batch", type=int, default=1, help='select batch. Default 1.')
-    parser.add_argument("--path", type=str,default="result/memory1.csv", help="csv file path")
+    parser.add_argument("--path", type=str,default="result/memory2.csv", help="csv file path")
     return parser.parse_args()
 
 if __name__=="__main__":
+    manual_seed(42)
     args = get_args()
     info = {
         "conv": {
-            "inc": [4,64,64,128,128,256,256,256,512,512,512,512,512],
-            "outc": [64,64,128,128,256,256,256,512,512,512,512,512,512],
-            "hw":[224,224,112,112,56,56,56,28,28,28,14,14,14]
+            "inc":  [4  ,64 ,64 ,128,128,256,256,256,512,512,512,512,512],
+            "outc": [64 ,64 ,128,128,256,256,256,512,512,512,512,512,512],
+            "hw":   [224,224,112,112,56 ,56 ,56 ,28 ,28 ,28 ,14 ,14 ,14 ]
         },
         "linear":{
             "inc": [512*7*7,4096,4096],

@@ -8,7 +8,6 @@ import os
 import argparse
 import numpy as np
 import random
-import time
 
 def manual_seed(seed):
     np.random.seed(seed) #1
@@ -29,6 +28,7 @@ def measure_time_host(
     continuous_measure: bool = False,
 ) -> float:
 
+    result_list = []
     for _ in range(num_warmups):
         _ = model.forward(input_tensor)
     torch.cuda.synchronize()
@@ -52,8 +52,9 @@ def measure_time_host(
                 torch.cuda.synchronize()
             end = timer()
             elapsed_time_ms += (end - start) * 1000
+            result_list.append(round((end-start)*1000,5))
 
-    return elapsed_time_ms / num_repeats
+    return elapsed_time_ms / num_repeats, result_list
 
 @torch.no_grad()
 def measure_time_device(
@@ -65,6 +66,7 @@ def measure_time_device(
     continuous_measure: bool = False,
 ) -> float:
 
+    result_list = []
     for _ in range(num_warmups):
         _ = model.forward(input_tensor)
     torch.cuda.synchronize()
@@ -96,8 +98,10 @@ def measure_time_device(
                 # Otherwise, there will be runtime error.
                 torch.cuda.synchronize()
             elapsed_time_ms += start_event.elapsed_time(end_event)
+            result_list.append(round(start_event.elapsed_time(end_event),5))
 
-    return elapsed_time_ms / num_repeats
+    return elapsed_time_ms / num_repeats, result_list
+
 
 @torch.no_grad()
 def run_inference(model: nn.Module,
@@ -106,10 +110,10 @@ def run_inference(model: nn.Module,
     return model.forward(input_tensor)
 
 
-def main(model, input_tensor, result) -> None:
+def main(model, input_tensor) -> None:
 
     num_warmups = 100
-    num_repeats = 200
+    num_repeats = 1000
 
     model.eval()
     model.cuda()
@@ -120,10 +124,10 @@ def main(model, input_tensor, result) -> None:
     torch.cuda.synchronize()
 
     # print("Latency Measurement Using CPU Timer...")
-    for continuous_measure in [True]:
+    for continuous_measure in [False]:
         for synchronize in [True]:
             try:
-                latency_ms = measure_time_host(
+                latency_ms, perones_total = measure_time_host(
                     model=model,
                     input_tensor=input_tensor,
                     num_repeats=num_repeats,
@@ -135,20 +139,18 @@ def main(model, input_tensor, result) -> None:
                       f"Synchronization: {synchronize!s:5}| "
                       f"Continuous Measurement: {continuous_measure!s:5}| "
                       f"Latency: {latency_ms:.5f} ms| ")
-                result.append(round(latency_ms,5))
             except Exception as e:
                 print(f"|"
                       f"Synchronization: {synchronize!s:5}| "
                       f"Continuous Measurement: {continuous_measure!s:5}| "
                       f"Latency: N/A     ms| ")
-                result.append(-1)
             torch.cuda.synchronize()
 
     # print("Latency Measurement Using CUDA Timer...")
-    for continuous_measure in [True]:
+    for continuous_measure in [False]:
         for synchronize in [True]:
             try:
-                latency_ms = measure_time_device(
+                latency_ms, perones_gpu = measure_time_device(
                     model=model,
                     input_tensor=input_tensor,
                     num_repeats=num_repeats,
@@ -160,63 +162,50 @@ def main(model, input_tensor, result) -> None:
                       f"Synchronization: {synchronize!s:5}| "
                       f"Continuous Measurement: {continuous_measure!s:5}| "
                       f"Latency: {latency_ms:.5f} ms| ")
-                result.append(round(latency_ms,5))
             except Exception as e:
                 print(f"|"
                       f"Synchronization: {synchronize!s:5}| "
                       f"Continuous Measurement: {continuous_measure!s:5}| "
                       f"Latency: N/A     ms| ")
-                result.append(-1)
             torch.cuda.synchronize()
 
-    # print("Latency Measurement Using PyTorch Benchmark...")
-    num_threads = 1
-    timer = benchmark.Timer(stmt="run_inference(model, input_tensor)",
-                            setup="from __main__ import run_inference",
-                            globals={
-                                "model": model,
-                                "input_tensor": input_tensor
-                            },
-                            num_threads=num_threads,
-                            label="Latency Measurement",
-                            sub_label="torch.utils.benchmark.")
-
-    profile_result = timer.timeit(num_repeats)
-    result.append(round(profile_result.mean*1000,5))
     # https://pytorch.org/docs/stable/_modules/torch/utils/benchmark/utils/common.html#Measurement
     # print(f"Latency: {profile_result.mean * 1000:.5f} ms")
-    return result
+    return perones_total, perones_gpu
 
 
-def save_result(path,result):
+def save_result(path, result, hist_time):
+    result.append(hist_time)
     if os.path.exists(path):
         old_df = pd.read_csv(path,index_col=0)
-        new_df = pd.DataFrame([result], columns=['type', 'target', 'index', 'in_c', 'out_c', 'h', 'batch', 'cpu_x', 'gpu_x', 'total'])
+        new_df = pd.DataFrame([result], columns=['type', 'target', 'index', 'in_c', 'out_c', 'h', 'batch','hist_time'])
         df = pd.concat([old_df,new_df], ignore_index=True)
     else:
-        df = pd.DataFrame([result], columns=['type', 'target', 'index', 'in_c', 'out_c', 'h', 'batch', 'cpu_x', 'gpu_x', 'total'])
+        df = pd.DataFrame([result], columns=['type', 'target', 'index', 'in_c', 'out_c', 'h', 'batch','hist_time'])
 
     df.to_csv(path)
 
+
 def get_args():
-    parser = argparse.ArgumentParser(description="Time test")
+    parser = argparse.ArgumentParser(description="Memory test")
     # model or layer
     # pytorch(int,float) conv1d
     parser.add_argument("--target",choices=['all','conv','linear'], default ='all', help="select model or layer. Default all model")
     parser.add_argument("--type", choices=['torch','int','float'], default="torch", help="select model type. Default pytorch type")
-    parser.add_argument("--index", type=int, default=0, help='select layer index. conv 13, linaer 3. Default 0')
-    parser.add_argument("--batch", type=int, default=64, help='select batch. Default 1.')
-    parser.add_argument("--path", type=str,default="result/time2.csv", help="csv file path")
+    parser.add_argument("--index", type=int, default=0, help='select layer index. conv 12, linaer 2. Default 0')
+    parser.add_argument("--batch", type=int, default=1, help='select batch. Default 1.')
+    parser.add_argument("--path", type=str,default="result/hist_time.csv", help="csv file path")
     return parser.parse_args()
+
 
 if __name__=="__main__":
     manual_seed(42)
     args = get_args()
     info = {
         "conv": {
-            "inc":  [4  ,64 ,64 ,128,128,256,256,256,512,512,512,512,512],
-            "outc": [64 ,64 ,128,128,256,256,256,512,512,512,512,512,512],
-            "hw":   [224,224,112,112,56 ,56 ,56 ,28 ,28 ,28 ,14 ,14 ,14 ]
+            "inc": [4,64,64,128,128,256,256,256,512,512,512,512,512],
+            "outc": [64,64,128,128,256,256,256,512,512,512,512,512,512],
+            "hw":[224,224,112,112,56,56,56,28,28,28,14,14,14]
         },
         "linear":{
             "inc": [512*7*7,4096,4096],
@@ -273,6 +262,7 @@ if __name__=="__main__":
     x = x.cuda()
     layer.cuda()
     result = [args.type, args.target, args.index, in_c, out_c, h, batch]
-    result = main(layer, x, result)
-    save_result(args.path, result)
-    time.sleep(5)
+    perones_total, perones_gpu = main(layer, x)
+    perones_total.sort()
+    perones_gpu.sort()
+    save_result(args.path, result, perones_total)
