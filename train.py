@@ -10,6 +10,7 @@ from torch import autocast
 from torch.cuda.amp import GradScaler
 import argparse
 import wandb
+from models import vgg, layers
 
 
 def manual_seed(seed):
@@ -20,6 +21,7 @@ def manual_seed(seed):
     torch.cuda.manual_seed_all(seed) #4.2
     torch.backends.cudnn.benchmark = False #5 
     torch.backends.cudnn.deterministic = True #6
+
 
 def validate(model, test_loader):
     model.eval()
@@ -48,15 +50,21 @@ def get_args():
     # pytorch(int,float) conv1d
     parser.add_argument("--lr", type=float,default=1e-3, help="select learning rate")
     parser.add_argument("--optim", choices=['adam','sgd'],default='sgd', help="select optimizer")
+    parser.add_argument("--epoch", type=int, default= 50, help='select number of epoch')
+    parser.add_argument("--custom", action='store_true')
+    parser.add_argument("--bias", action='store_true')
+    parser.add_argument('--batch', type=int, default=32)
     return parser.parse_args()
 
 
 if __name__=="__main__":
     args = get_args()
 
+    name = f"vgg16_{args.optim}_{args.lr}_{args.batch}_{args.bias}"
+
     wandb.init(
             project = "cifar100_vgg16",
-            name = f"{args.optim}_{args.lr}",
+            name = name,
             config = args
         )
     manual_seed(42)
@@ -64,9 +72,13 @@ if __name__=="__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # print(device)
 
-    model = torchvision.models.vgg.vgg16(pretrained=True)
-    model.features[0] = nn.Conv2d(4,64,3,1,1)
-    model.classifier[6] = nn.Linear(in_features=4096, out_features=100, bias=True)
+    if args.custom or args.bias==False:
+        model = vgg.vgg16(bias=args.bias)
+        model.weight_init()
+    else:
+        model = torchvision.models.vgg.vgg16(pretrained=True)
+        model.features[0] = nn.Conv2d(4,64,3,1,1)
+        model.classifier[6] = nn.Linear(in_features=4096, out_features=100, bias=True)
     # freeze convolution weights
     # for i,param in enumerate(model.features.parameters()):
     #     if i !=0:
@@ -74,8 +86,8 @@ if __name__=="__main__":
         
     # print(model)
 
-    EPOCHS = 50
-    BATCH = 32
+    EPOCHS = args.epoch
+    BATCH = args.batch
     VAL_BATCH=256
     LR = args.lr
     MOMENTUM = 0.9
@@ -108,6 +120,8 @@ if __name__=="__main__":
         optimizer = optim.Adam(model.classifier.parameters(), lr=LR)
     else:
         optimizer = optim.SGD(model.classifier.parameters(), lr=LR, momentum=MOMENTUM, weight_decay=DECAY)
+
+    scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr = LR, max_lr=LR*10,step_size_up=20, cycle_momentum=False)
     # loss function
     criterion = nn.CrossEntropyLoss()
 
@@ -157,7 +171,7 @@ if __name__=="__main__":
                 'model_state_dict' : model.state_dict(),
                 'best_acc': val_acc
             }
-            torch.save(checkpoint, f'./checkpoint/vgg16_cifar_{args.optim}_{args.lr}.pth')
+            torch.save(checkpoint, f'./checkpoint/{name}.pth')
             # print(f"save best acc {best:.2f}")
 
         metric_info = {
