@@ -137,17 +137,17 @@ class QuantReLU(nn.Module):
     #     x = torch.sqrt(torch.clamp(x, min=0, max=2**16-1))
     #     # x = x-128
     #     return x.type(torch.int8)
-    # def forward(self,x):
-    #     activation_observer = HistogramObserver(quant_max=127, quant_min=-128).to(x.device)
-    #     quant_data = activation_observer(x)
-    #     scale, zero_tensor = activation_observer.calculate_qparams()
-    #     scale = scale.to(x.device)
-    #     zero_tensor = zero_tensor.to(x.device)
-    #     x = torch.tensor(x/scale + zero_tensor, dtype=torch.int8)
-    #     return x
     def forward(self,x):
-        x = torch.sqrt(torch.clamp(x+2**15, min=0, max=2**16-1))-128
-        return x.type(torch.int8)
+        activation_observer = HistogramObserver(quant_max=127, quant_min=-128, reduce_range=True).to(x.device)
+        quant_data = activation_observer(x)
+        scale, zero_tensor = activation_observer.calculate_qparams()
+        scale = scale.to(x.device)
+        zero_tensor = zero_tensor.to(x.device)
+        x = torch.tensor(x/scale + zero_tensor, dtype=torch.int8)
+        return x
+    # def forward(self,x):
+    #     x = torch.sqrt(torch.clamp(x+2**15, min=0, max=2**16-1))-128
+    #     return x.type(torch.int8)
 
 
     

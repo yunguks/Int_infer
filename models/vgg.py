@@ -21,7 +21,7 @@ class VGG(nn.Module):
         self.features = features
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
         self.classifier = nn.Sequential(
-            nn.Linear(512*7*7, 4096, bias=bias),
+            nn.Linear(25088, 4096, bias=bias),
             nn.ReLU(True),
             nn.Dropout(p=dropout),
             nn.Linear(4096, 4096, bias=bias),
@@ -53,7 +53,7 @@ class VGG(nn.Module):
 
 class INTVGG(nn.Module):
     def __init__(
-        self, features: nn.Module, num_classes: int = 100, init_weights: bool = False, dropout: float = 0.5, bias=True
+        self, features: nn.Module, num_classes: int = 100, bias=True
     ) -> None:
         super().__init__()
         _log_api_usage_once(self)
@@ -87,7 +87,7 @@ class INTVGG(nn.Module):
 
 class FLOATVGG(nn.Module):
     def __init__(
-        self, features: nn.Module, num_classes: int = 100, init_weights: bool = False, dropout: float = 0.5, bias=True
+        self, features: nn.Module, num_classes: int = 100, bias=True
     ) -> None:
         super().__init__()
         _log_api_usage_once(self)
@@ -167,10 +167,10 @@ def vgg16(cfg: str = "D", batch_norm: bool=False, bias=True, **kwargs: Any) -> V
     model = VGG(make_layers(cfgs[cfg],bias=bias), bias=bias, **kwargs)
     return model
 
-def int_vgg16(cfg: str = "D", batch_norm: bool=False, bias=True, **kwargs: Any) -> INTVGG:
+def int_vgg16(cfg: str = "D",bias=True, **kwargs: Any) -> INTVGG:
     model = INTVGG(int_make_layers(cfgs[cfg], bias=bias), bias=bias,**kwargs)
     return model
 
-def float_vgg16(cfg: str = "D", batch_norm: bool=False, bias=True, **kwargs: Any) -> FLOATVGG:
+def float_vgg16(cfg: str = "D",bias=True, **kwargs: Any) -> FLOATVGG:
     model = FLOATVGG(float_make_layers(cfgs[cfg], bias=bias), bias=bias, **kwargs)
     return model

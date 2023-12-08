@@ -23,13 +23,13 @@ def manual_seed(seed):
     torch.backends.cudnn.deterministic = True #6
 
 
-def validate(model, test_loader):
+def validate(model, test_loader, args):
     model.eval()
     val_loss = 0.0
     val_acc = 0
     with torch.no_grad():
         for data in tqdm(test_loader,leave=True):
-            imgs = torch.cat([data[0], torch.zeros((data[0].size(0),1,224,224))], 1)
+            imgs = torch.cat([data[0], torch.zeros((data[0].size(0),1,args.imgsize,args.imgsize))], 1)
             imgs, target = imgs.to(device), data[1].to(device)
             output = model(imgs)
             loss = criterion(output, target)
@@ -54,13 +54,14 @@ def get_args():
     parser.add_argument("--custom", action='store_true')
     parser.add_argument("--bias", action='store_true')
     parser.add_argument('--batch', type=int, default=32)
+    parser.add_argument('--imgsize', type=int, default=224)
     return parser.parse_args()
 
 
 if __name__=="__main__":
     args = get_args()
 
-    name = f"vgg16_{args.optim}_{args.lr}_{args.batch}_{args.bias}"
+    name = f"{args.optim}_{args.lr}_{args.batch}_{args.bias}_{args.imgsize}"
 
     wandb.init(
             project = "cifar100_vgg16",
@@ -92,10 +93,11 @@ if __name__=="__main__":
     LR = args.lr
     MOMENTUM = 0.9
     DECAY=5e-4
+    IMG_SIZE = args.imgsize
 
     transform = transforms.Compose([
-        transforms.Resize((224,224)),
-        transforms.RandomCrop((224,224),padding=8),
+        transforms.Resize((IMG_SIZE,IMG_SIZE)),
+        transforms.RandomCrop((IMG_SIZE,IMG_SIZE),padding=4),
         transforms.RandomHorizontalFlip(),
         transforms.RandomRotation(15),
         transforms.ToTensor(),
@@ -103,7 +105,7 @@ if __name__=="__main__":
     ])
 
     test_transform = transforms.Compose([
-        transforms.Resize((224,224)),
+        transforms.Resize((IMG_SIZE,IMG_SIZE)),
         transforms.ToTensor(),
         # transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std= (0.2675, 0.2565, 0.2761)),
     ])
@@ -126,10 +128,8 @@ if __name__=="__main__":
     criterion = nn.CrossEntropyLoss()
 
     model.to(device)
-    zero_tensor = torch.zeros((BATCH,1,224,224))
 
-
-    start_loss, start_acc = validate(model, val_loader)
+    start_loss, start_acc = validate(model, val_loader, args)
     # print(f"START LOSS {start_loss:.4f}, ACC {start_acc:.2f}")
     best = 0
     scaler = GradScaler()
@@ -138,7 +138,7 @@ if __name__=="__main__":
         train_loss = 0.0
         train_acc = 0
         for data in tqdm(train_loader,leave=True):
-            imgs = torch.cat([data[0], torch.zeros((data[0].size(0),1,224,224))], 1)
+            imgs = torch.cat([data[0], torch.zeros((data[0].size(0),1,IMG_SIZE,IMG_SIZE))], 1)
             imgs, target = imgs.to(device), data[1].to(device)
             optimizer.zero_grad()
 
@@ -160,10 +160,10 @@ if __name__=="__main__":
 
         train_loss = train_loss/len(train_loader)
         train_acc = 100. * train_acc/len(train_loader.dataset)
-        # print(f" TRAIN_LOSS : {train_loss:.4f}, TRAIN_ACC : {train_acc:.2f}")
+        print(f" TRAIN_LOSS : {train_loss:.4f}, TRAIN_ACC : {train_acc:.2f}")
 
-        val_loss, val_acc = validate(model, val_loader)
-        # print(f" VAL_LOSS : {val_loss:.4f}, VAL_ACC : {val_acc:.2f}")
+        val_loss, val_acc = validate(model, val_loader, args)
+        print(f" VAL_LOSS : {val_loss:.4f}, VAL_ACC : {val_acc:.2f}")
         if best < val_acc:
             best = val_acc
             checkpoint = {
@@ -172,7 +172,7 @@ if __name__=="__main__":
                 'best_acc': val_acc
             }
             torch.save(checkpoint, f'./checkpoint/{name}.pth')
-            # print(f"save best acc {best:.2f}")
+            print(f"save best acc {best:.2f}, {name}")
 
         metric_info = {
                 'lr/lr' : optimizer.param_groups[0]['lr'],
