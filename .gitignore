@@ -1,6 +1,7 @@
 # Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
-
+result/
+imgs/
 dataset
 checkpoint
 build
@@ -10,6 +11,7 @@ wandb
 nohup.out
 *.out
 *.csv
+*.png
 ### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/

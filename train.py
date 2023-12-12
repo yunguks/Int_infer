@@ -123,7 +123,7 @@ if __name__=="__main__":
     else:
         optimizer = optim.SGD(model.classifier.parameters(), lr=LR, momentum=MOMENTUM, weight_decay=DECAY)
 
-    scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr = LR, max_lr=LR*10,step_size_up=20, cycle_momentum=False)
+    scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr = LR, max_lr=LR*5,step_size_up=30, cycle_momentum=False)
     # loss function
     criterion = nn.CrossEntropyLoss()
 
@@ -132,7 +132,6 @@ if __name__=="__main__":
     start_loss, start_acc = validate(model, val_loader, args)
     # print(f"START LOSS {start_loss:.4f}, ACC {start_acc:.2f}")
     best = 0
-    scaler = GradScaler()
     for epoch in range(EPOCHS):
         model.train()
         train_loss = 0.0
@@ -142,22 +141,20 @@ if __name__=="__main__":
             imgs, target = imgs.to(device), data[1].to(device)
             optimizer.zero_grad()
 
-            with autocast(device_type='cuda', dtype=torch.float16):
-                output = model(imgs)
-                loss = criterion(output, target)
+            output = model(imgs)
+            loss = criterion(output, target)
 
-            scaler.scale(loss).backward()
+            loss.backward()
 
-            scaler.step(optimizer)
-
-            # Updates the scale for next iteration.
-            scaler.update()
+            optimizer.step()
 
             _, preds = torch.max(output.data, 1)
 
             train_loss += loss.item()
             train_acc += (preds ==target).sum().item()
 
+        if scheduler:
+            scheduler.step()
         train_loss = train_loss/len(train_loader)
         train_acc = 100. * train_acc/len(train_loader.dataset)
         print(f" TRAIN_LOSS : {train_loss:.4f}, TRAIN_ACC : {train_acc:.2f}")
