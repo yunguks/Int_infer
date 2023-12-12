@@ -1,12 +1,17 @@
 # Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
-
+result/
+imgs/
 dataset
 checkpoint
 build
 dist
 *.egg-info
-
+wandb
+nohup.out
+*.out
+*.csv
+*.png
 ### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/

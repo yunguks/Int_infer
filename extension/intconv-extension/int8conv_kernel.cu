@@ -64,8 +64,8 @@ void find_algo(
         //output_type = CUDNN_DATA_INT8x4;
         //output_format = CUDNN_TENSOR_NCHW_VECT_C;
 
-        // output_type = CUDNN_DATA_INT32;
-        output_type = CUDNN_DATA_FLOAT;
+        output_type = CUDNN_DATA_INT32;
+        // output_type = CUDNN_DATA_FLOAT;
         output_format = CUDNN_TENSOR_NHWC;
     }
     else{
@@ -243,9 +243,9 @@ torch::Tensor tensor_core_int8_conv(
     // cudnnConvolutionFwdAlgo_t algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
     cudnnConvolutionFwdAlgo_t algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
 
-    float alpha = 1.0;
+    int32_t alpha = 1;
     //float alpha = 1.0;
-    float beta = 0.0;
+    int32_t beta = 0;
 
     //size_t ws_size = 355968;
     size_t ws_size;
@@ -303,7 +303,7 @@ torch::Tensor tensor_core_float_conv(
     checkCUDNN(cudnnCreateFilterDescriptor(&wDesc));
     checkCUDNN(cudnnSetFilter4dDescriptor(wDesc, 
                 CUDNN_DATA_FLOAT, 
-                CUDNN_TENSOR_NCHW, 
+                CUDNN_TENSOR_NHWC, 
                 n_weight, c_weight, h_weight, w_weight));
 
     /* Convolution setting 할당*/

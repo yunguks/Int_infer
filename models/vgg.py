@@ -14,21 +14,34 @@ from .layers import *
 
 class VGG(nn.Module):
     def __init__(
-        self, features: nn.Module, num_classes: int = 100, init_weights: bool = True, dropout: float = 0.5
+        self, features: nn.Module, num_classes: int = 100, init_weights: bool = True, dropout: float = 0.5, bias=True
     ) -> None:
         super().__init__()
         _log_api_usage_once(self)
         self.features = features
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
         self.classifier = nn.Sequential(
-            nn.Linear(512*7*7, 4096, bias=False),
+            nn.Linear(25088, 4096, bias=bias),
             nn.ReLU(True),
             nn.Dropout(p=dropout),
-            nn.Linear(4096, 4096, bias=False),
+            nn.Linear(4096, 4096, bias=bias),
             nn.ReLU(True),
             nn.Dropout(p=dropout),
-            nn.Linear(4096, num_classes, bias=False),
+            nn.Linear(4096, num_classes, bias=bias),
         )
+    
+    def weight_init(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                # nn.init.constant_(m.bias, 0)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.features(x)
@@ -40,25 +53,24 @@ class VGG(nn.Module):
 
 class INTVGG(nn.Module):
     def __init__(
-        self, features: nn.Module, num_classes: int = 100, init_weights: bool = True, dropout: float = 0.5
+        self, features: nn.Module, num_classes: int = 100, bias=True
     ) -> None:
         super().__init__()
         _log_api_usage_once(self)
         self.features = features
         # self.avgpool = IntPool(7,stride=7,mode=1)
         self.classifier = nn.Sequential(
-            IntLinear(25088, 4096),
-            QuantReLU(),
-            nn.Dropout(p=dropout),
-            IntLinear(4096, 4096),
-            QuantReLU(),
-            nn.Dropout(p=dropout),
-            IntLinear(4096, num_classes),
+            IntLinear(25088, 4096,bias=bias),
+            QuantReLU(25088),
+            IntLinear(4096, 4096, bias=bias),
+            QuantReLU(4096),
+            IntLinear(4096, num_classes, bias=bias),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.features(x)
         # x = self.avgpool(x)
+        x = x.permute(0,3,1,2)
         x = torch.flatten(x, 1)
         x = self.classifier(x)
         return x
@@ -75,25 +87,24 @@ class INTVGG(nn.Module):
 
 class FLOATVGG(nn.Module):
     def __init__(
-        self, features: nn.Module, num_classes: int = 100, init_weights: bool = True, dropout: float = 0.5
+        self, features: nn.Module, num_classes: int = 100, bias=True
     ) -> None:
         super().__init__()
         _log_api_usage_once(self)
         self.features = features
         # self.avgpool = FLOATPool(7,stride=7,mode=1)
         self.classifier = nn.Sequential(
-            FLOATLinear(25088, 4096),
+            FLOATLinear(25088, 4096, bias=bias),
             nn.ReLU(),
-            nn.Dropout(p=dropout),
-            FLOATLinear(4096, 4096),
+            FLOATLinear(4096, 4096, bias=bias),
             nn.ReLU(),
-            nn.Dropout(p=dropout),
-            FLOATLinear(4096, num_classes),
+            FLOATLinear(4096, num_classes, bias=bias),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.features(x)
         # x = self.avgpool(x)
+        x = x.permute(0,3,1,2)
         x = torch.flatten(x, 1)
         x = self.classifier(x)
         return x
@@ -108,44 +119,43 @@ class FLOATVGG(nn.Module):
                 layer.cuda()
 
 
-def make_layers(cfg: List[Union[str, int]]) -> nn.Sequential:
+def make_layers(cfg: List[Union[str, int]], bias=True) -> nn.Sequential:
     layers: List[nn.Module] = []
     in_channels = 4
     for vs in cfg:
         for v in vs:
             v = cast(int, v)
-            conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
+            conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1,bias=bias)
             layers += [conv2d, nn.ReLU()]
             in_channels = v
         layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
     return nn.Sequential(*layers)
 
 
-def int_make_layers(cfg: List[Union[str, int]]) -> nn.Sequential:
+def int_make_layers(cfg: List[Union[str, int]], bias=True) -> nn.Sequential:
     layers: List[nn.Module] = []
     in_channels = 4
     for vs in cfg:
         for v in vs:
             v = cast(int, v)
-            conv2d = IntConv2d(in_channels, v, kernel_size=3, padding=1)
-            layers += [conv2d, QuantReLU()]
+            conv2d = IntConv2d(in_channels, v, kernel_size=3, padding=1, bias=bias)
+            layers += [conv2d, QuantReLU(in_channels*9)]
             in_channels = v
         layers += [IntPool(kernel_size=2, stride=2)]
     return nn.Sequential(*layers)
 
 
-def float_make_layers(cfg: List[Union[str, int]]) -> nn.Sequential:
+def float_make_layers(cfg: List[Union[str, int]], bias=True) -> nn.Sequential:
     layers: List[nn.Module] = []
     in_channels = 4
     for vs in cfg:
         for v in vs:
             v = cast(int, v)
-            conv2d = FLOATConv2d(in_channels, v, kernel_size=3, padding=1)
+            conv2d = FLOATConv2d(in_channels, v, kernel_size=3, padding=1, bias=True)
             layers += [conv2d, nn.ReLU()]
             in_channels = v
         layers += [FLOATPool(kernel_size=2, stride=2)]
     return nn.Sequential(*layers)
-
 
 cfgs: Dict[str, List[Union[str, int]]] = {
     "D": [[64, 64], [128, 128], [256, 256, 256], [512, 512, 512],[512, 512, 512]],
@@ -153,14 +163,14 @@ cfgs: Dict[str, List[Union[str, int]]] = {
 }
 
 
-def vgg16(cfg: str = "D", batch_norm: bool=False, **kwargs: Any) -> VGG:
-    model = VGG(make_layers(cfgs[cfg]), **kwargs)
+def vgg16(cfg: str = "D", batch_norm: bool=False, bias=True, **kwargs: Any) -> VGG:
+    model = VGG(make_layers(cfgs[cfg],bias=bias), bias=bias, **kwargs)
     return model
 
-def int_vgg16(cfg: str = "D", batch_norm: bool=False, **kwargs: Any) -> INTVGG:
-    model = INTVGG(int_make_layers(cfgs[cfg]), **kwargs)
+def int_vgg16(cfg: str = "D",bias=True, **kwargs: Any) -> INTVGG:
+    model = INTVGG(int_make_layers(cfgs[cfg], bias=bias), bias=bias,**kwargs)
     return model
 
-def float_vgg16(cfg: str = "D", batch_norm: bool=False, **kwargs: Any) -> FLOATVGG:
-    model = FLOATVGG(float_make_layers(cfgs[cfg]), **kwargs)
+def float_vgg16(cfg: str = "D",bias=True, **kwargs: Any) -> FLOATVGG:
+    model = FLOATVGG(float_make_layers(cfgs[cfg], bias=bias), bias=bias, **kwargs)
     return model
